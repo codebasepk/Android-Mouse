@@ -68,22 +68,27 @@ public class MainActivity extends Activity {
     }
 
     private void onMove(MotionEvent event) {
-        int distanceX = 0;
-        int distanceY = 0;
+        float distanceX = 0;
+        float distanceY = 0;
 
         mCurMoveX = event.getX();
         mCurMoveY = event.getY();
 
         if (mLastMoveX != Float.MAX_VALUE && mLastMoveY != Float.MAX_VALUE) {
-            distanceX = (int) (mCurMoveX - mDownX);
-            distanceY = (int) (mCurMoveY - mDownY);
+            distanceX = mCurMoveX - mDownX;
+            distanceY = mCurMoveY - mDownY;
         }
 
-        Point point = new Point();
-        getWindowManager().getDefaultDisplay().getSize(point);
-        float percentX = ((float) distanceX / point.x) * 100;
-        float percentY = ((float) distanceY / point.y) * 100;
-        mWAMPSession.call("io.crossbar.move_mouse", percentX, percentY);
+        float distance = (float) Math.sqrt(distanceX * distanceX + distanceY * distanceY);
+        if (distance > 0) {
+            Point point = new Point();
+            getWindowManager().getDefaultDisplay().getSize(point);
+            float percentX = (distanceX / point.x) * 100;
+            float percentY = (distanceY / point.y) * 100;
+            mWAMPSession.call("io.crossbar.move_mouse", percentX * 3, percentY * 3);
+            mDownX = event.getX();
+            mDownY = event.getY();
+        }
         mLastMoveX = mCurMoveX;
         mLastMoveY = mCurMoveY;
     }
