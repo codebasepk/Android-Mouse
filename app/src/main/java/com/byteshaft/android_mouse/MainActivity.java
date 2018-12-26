@@ -1,36 +1,18 @@
 package com.byteshaft.android_mouse;
 
 import android.app.Activity;
+import android.graphics.Point;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 
+import io.crossbar.autobahn.wamp.Client;
+import io.crossbar.autobahn.wamp.Session;
+
 public class MainActivity extends Activity {
 
-
     private View touchBoard;
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        setContentView(R.layout.activity_main);
-        init();
-    }
-
-    private void init() {
-        touchBoard = (View) findViewById(R.id.touch_board);
-        touchBoard.setOnTouchListener(new View.OnTouchListener() {
-            @Override
-            public boolean onTouch(View v, MotionEvent event) {
-                onScreenTouch(event);
-                return true;
-            }
-        });
-    }
-
     private long mDownTime;
     private float mDownX;
     private float mDownY;
@@ -46,6 +28,30 @@ public class MainActivity extends Activity {
     private float mCurMoveY;
     private long mLastMoveTime;
 
+    private Session mWAMPSession;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        setContentView(R.layout.activity_main);
+        mWAMPSession = new Session();
+        mWAMPSession.addOnJoinListener((session, details) -> System.out.println("HELLO"));
+        Client client = new Client(mWAMPSession, "ws://192.168.100.6:5020/ws", "realm1");
+        client.connect().whenComplete((exitInfo, throwable) -> {});
+        init();
+    }
+
+    private void init() {
+        touchBoard = findViewById(R.id.touch_board);
+        touchBoard.setOnTouchListener(new View.OnTouchListener() {
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                onScreenTouch(event);
+                return true;
+            }
+        });
+    }
 
     private void onScreenTouch(MotionEvent event) {
         switch (event.getActionMasked()) {
@@ -58,7 +64,6 @@ public class MainActivity extends Activity {
             case MotionEvent.ACTION_MOVE:
                 onMove(event);
                 break;
-
         }
     }
 
@@ -69,21 +74,18 @@ public class MainActivity extends Activity {
         mCurMoveX = event.getX();
         mCurMoveY = event.getY();
 
-
         if (mLastMoveX != Float.MAX_VALUE && mLastMoveY != Float.MAX_VALUE) {
             distanceX = (int) (mCurMoveX - mDownX);
             distanceY = (int) (mCurMoveY - mDownY);
         }
 
-        int distance = (int) Math.sqrt(distanceX * distanceX + distanceY * distanceY);
-
-        // send a move command per 0.5 s
-        if (distance > 100 || System.currentTimeMillis() - mLastMoveTime > 100) {
-            Log.i("TAG", "X " + distanceX + "  Y "+ distanceY);
-            mLastMoveX = mCurMoveX;
-            mLastMoveY = mCurMoveY;
-            mLastMoveTime = System.currentTimeMillis();
-        }
+        Point point = new Point();
+        getWindowManager().getDefaultDisplay().getSize(point);
+        float percentX = ((float) distanceX / point.x) * 100;
+        float percentY = ((float) distanceY / point.y) * 100;
+        mWAMPSession.call("io.crossbar.move_mouse", percentX, percentY);
+        mLastMoveX = mCurMoveX;
+        mLastMoveY = mCurMoveY;
     }
 
     private void onSingClick(MotionEvent event, boolean down) {
@@ -96,8 +98,5 @@ public class MainActivity extends Activity {
             mUpX = event.getX();
             mUpY = event.getY();
         }
-
-
     }
 }
-
